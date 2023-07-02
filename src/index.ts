@@ -1,4 +1,4 @@
-import { ProposedFeatures, createConnection } from "vscode-languageserver/node.js";
+import { Connection, ProposedFeatures, createConnection } from "vscode-languageserver/node.js";
 import { globalData } from "./documentManager.js";
 import colorPresentationService from "./services/colorPresentationService.js";
 import completionResolveService from "./services/completionResolveService.js";
@@ -15,8 +15,11 @@ import { info } from "./utils/logging.js";
 const connectionType = process.argv.includes("--stdio") ? "stdio" : "ipc";
 
 export const server = {
-    connection: connectionType === "stdio" ? createConnection(process.stdin, process.stdout) : createConnection(ProposedFeatures.all),
+    connection: undefined,
     data: globalData,
+} as {
+    connection?: Connection;
+    data: typeof globalData;
 };
 
 function main() {
@@ -26,20 +29,21 @@ function main() {
             documents: { manager },
         },
     } = server;
+    server.connection = connectionType === "stdio" ? createConnection(process.stdin, process.stdout) : createConnection(ProposedFeatures.all);
     info(undefined, "Starting server...");
     info(undefined, `Node Version: ${process.version}`);
     info(undefined, `Command: ${process.argv.join(" ")}`);
-    info(undefined, `Connection type: ${connectionType}`)
-    connection.listen();
-    connection.onInitialize(initializeService);
-    connection.onHover(hover);
-    connection.languages.semanticTokens.on(semanticTokensService);
-    connection.onDefinition(definitionService);
-    connection.onReferences(referenceService);
-    connection.onCompletion(completionService);
-    connection.onCompletionResolve(completionResolveService);
-    connection.onDocumentColor(documentColorService);
-    connection.onColorPresentation(colorPresentationService);
+    info(undefined, `Connection type: ${connectionType}`);
+    connection?.listen();
+    connection?.onInitialize(initializeService);
+    connection?.onHover(hover);
+    connection?.languages.semanticTokens.on(semanticTokensService);
+    connection?.onDefinition(definitionService);
+    connection?.onReferences(referenceService);
+    connection?.onCompletion(completionService);
+    connection?.onCompletionResolve(completionResolveService);
+    connection?.onDocumentColor(documentColorService);
+    connection?.onColorPresentation(colorPresentationService);
 
     manager.onDidChangeContent(didChangeContentService);
     manager.listen(server.connection);

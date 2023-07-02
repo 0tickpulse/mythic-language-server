@@ -64,7 +64,7 @@ const flushProcedures: (() => void)[] = [];
  */
 const flushDocProcedures: ((doc: TextDocument) => void)[] = [
     ({ uri }) => globalData.flush(uri),
-    ({ uri }) => server.connection.sendDiagnostics({ uri, diagnostics: [] }),
+    ({ uri }) => server.connection?.sendDiagnostics({ uri, diagnostics: [] }),
 ];
 export function onFlush(procedure: () => void) {
     flushProcedures.push(procedure);
@@ -134,7 +134,7 @@ export function scheduleParse() {
                     warn("Parser", `No diagnostics for ${uri} - skipping...`);
                     return;
                 }
-                server.connection.sendDiagnostics({ uri, diagnostics });
+                server.connection?.sendDiagnostics({ uri, diagnostics });
                 info("Parser", `Sent ${diagnostics.length} diagnostics for ${uri}`);
             });
             PARTIAL_PARSE_QUEUE.clear();

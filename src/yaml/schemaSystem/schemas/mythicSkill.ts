@@ -8,9 +8,7 @@ import { Resolver } from "../../../mythicParser/resolver.js";
 import { CustomPosition, CustomRange } from "../../../utils/positionsAndRanges.js";
 import { mdSeeAlso } from "../../../utils/utils.js";
 import { DocumentInfo } from "../../parser/documentInfo.js";
-import { SchemaValidationError, YArr, YMap, YMythicCondition, YMythicSkill, YNum, YObj, YString, YamlSchema } from "../schemaTypes.js";
-import {} from "./mythicSkill.js";
-import { dbg } from "../../../utils/logging.js";
+import { SchemaValidationError, YArr, YMythicCondition, YMythicSkill, YNum, YObj, YString, YamlSchema } from "../schemaTypes.js";
 
 const mythicSkill = (cached: CachedMythicSkill) =>
     new YObj({
