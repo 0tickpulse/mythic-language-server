@@ -2,7 +2,7 @@
 # This file is used to ignore files when publishing to NPM
 
 # TypeScript files
-**/*.ts
+src/
 tsconfig.json
 tsconfig.tsbuildinfo
 
