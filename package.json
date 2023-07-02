@@ -19,17 +19,16 @@
         "@types/js-levenshtein": "^1.1.1"
     },
     "dependencies": {
-        "@types/node": "^18.15.11",
+        "@types/node": "^18.16.19",
         "@types/picomatch": "^2.3.0",
         "js-levenshtein": "^1.1.6",
         "linked-list": "^3.1.0",
-        "node@latest": "link:vscode-languageserver/node@latest",
         "picomatch": "^2.3.1",
         "threads": "^1.7.0",
         "tick-ts-utils": "^4.2.2",
         "vscode-languageserver": "^8.1.0",
         "vscode-languageserver-textdocument": "^1.0.8",
         "vscode-uri": "^3.0.7",
-        "yaml": "^2.2.1"
+        "yaml": "^2.3.1"
     }
 }
