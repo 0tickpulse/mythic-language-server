@@ -49,6 +49,6 @@ function main() {
     manager.listen(server.connection);
 }
 
-if (require.main === module) {
+if (require.main === module && (process.argv.includes("--stdio") || process.argv.includes("--node-ipc"))) {
     main();
 }
