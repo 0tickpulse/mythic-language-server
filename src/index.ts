@@ -6,12 +6,11 @@ import completionService from "./services/completionService.js";
 import definitionService from "./services/definitionService.js";
 import didChangeContentService from "./services/didChangeContentService.js";
 import documentColorService from "./services/documentColorService.js";
-import { hover } from "./services/hoverService.js";
+import hover from "./services/hoverService.js";
 import initializeService from "./services/initializeService.js";
 import referenceService from "./services/referenceService.js";
 import semanticTokensService from "./services/semanticTokensService.js";
 import { info } from "./utils/logging.js";
-import { stdin, stdout } from "process";
 
 const connectionType = process.argv.includes("--stdio") ? "stdio" : "ipc";
 

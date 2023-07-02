@@ -4,7 +4,7 @@ import { p } from "../utils/positionsAndRanges.js";
 import { server } from "../index.js";
 import { logEvent } from "../utils/logging.js";
 
-export const hover: ServerRequestHandler<HoverParams, Hover | null | undefined, never, void> = ({ textDocument, position }: HoverParams) => {
+export default ({ textDocument, position }: HoverParams) => {
     logEvent("hoverSerivce", textDocument)
     const doc = globalData.documents.getDocument(textDocument.uri);
     if (!doc) {
