@@ -5,3 +5,6 @@
 **/*.ts
 tsconfig.json
 tsconfig.tsbuildinfo
+
+# Webpack files
+dist/
