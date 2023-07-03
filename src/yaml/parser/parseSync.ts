@@ -8,6 +8,7 @@ import { CustomPosition, CustomRange } from "../../utils/positionsAndRanges.js";
 import { PATH_MAP } from "../schemaSystem/data.js";
 import { DocumentInfo } from "./documentInfo.js";
 import { dbg, info, warn } from "../../utils/logging.js";
+import { YamlSchema } from "../schemaSystem/schemaTypes.js";
 
 class DocumentQueue {
     #items: TextDocument[] = [];
@@ -145,7 +146,7 @@ export function scheduleParse() {
     );
 }
 
-export function preParse(doc: TextDocument) {
+export function preParse(doc: TextDocument, schemaOverride?: YamlSchema) {
     const { uri } = doc;
     const source = doc.getText();
     const documentInfo = new DocumentInfo(doc);
@@ -156,11 +157,15 @@ export function preParse(doc: TextDocument) {
         return documentInfo;
     }
 
-    PATH_MAP.forEach(({ schema, picoMatch }, pathMatcher) => {
-        if (picoMatch(uri)) {
-            documentInfo.setSchema(schema);
-        }
-    });
+    if (schemaOverride === undefined) {
+        PATH_MAP.forEach(({ schema, picoMatch }, pathMatcher) => {
+            if (picoMatch(uri)) {
+                documentInfo.setSchema(schema);
+            }
+        });
+    } else {
+        documentInfo.setSchema(schemaOverride);
+    }
 
     const { schema } = documentInfo;
     documentInfo.yamlAst.errors.forEach((error) =>

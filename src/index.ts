@@ -14,12 +14,12 @@ import { info } from "./utils/logging.js";
 
 const connectionType = process.argv.includes("--stdio") ? "stdio" : "ipc";
 
-export const server = {
-    connection: undefined,
-    data: globalData,
-} as {
+export const server: {
     connection?: Connection;
     data: typeof globalData;
+} = {
+    connection: undefined,
+    data: globalData,
 };
 
 function main() {
