@@ -1,14 +1,13 @@
 import { Optional } from "tick-ts-utils";
 import { Diagnostic } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { parseDocument } from "yaml";
 import { globalData } from "../../documentManager.js";
 import { server } from "../../index.js";
+import { dbg, info, warn } from "../../utils/logging.js";
 import { CustomPosition, CustomRange } from "../../utils/positionsAndRanges.js";
 import { PATH_MAP } from "../schemaSystem/data.js";
-import { DocumentInfo } from "./documentInfo.js";
-import { dbg, info, warn } from "../../utils/logging.js";
 import { YamlSchema } from "../schemaSystem/schemaTypes.js";
+import { DocumentInfo } from "./documentInfo.js";
 
 class DocumentQueue {
     #items: TextDocument[] = [];
@@ -87,26 +86,18 @@ export function scheduleParse() {
             const flushDoc = (doc: TextDocument) => {
                 info("Parser", `Flushing data for ${doc.uri}`);
                 flushDocProcedures.forEach((procedure) => procedure(doc));
-                info("Parser", `Flushed data for ${doc.uri}`);
             };
             const pre = (doc: TextDocument) => {
-                info("Parser", `Preparsing ${doc.uri}`);
-                const start = Date.now();
                 const documentInfo = preParse(doc);
                 globalData.documents.set(documentInfo);
-                const duration = Date.now() - start;
-                info("Parser", `Preparsed ${doc.uri} (${documentInfo.errors.length} errors) in ${duration}ms`);
                 diagnostics.set(doc.uri, documentInfo.errors);
             };
             const postAndClear = (doc: TextDocument) => {
                 info("Parser", `Postparsing ${doc.uri}`);
-                const start = Date.now();
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we just set it in the previous closure
                 const documentInfo = postParse(globalData.documents.getDocument(doc.uri)!);
                 globalData.documents.set(documentInfo);
-                const duration = Date.now() - start;
                 addDependents(doc);
-                info("Parser", `Postparsed ${doc.uri} (${documentInfo.errors.length} errors) in ${duration}ms`);
                 diagnostics.set(doc.uri, documentInfo.errors);
                 FULL_PARSE_QUEUE.remove(doc);
             };
@@ -117,6 +108,9 @@ export function scheduleParse() {
                     return;
                 }
                 documentInfo.traverseDependents(({ doc }) => {
+                    FULL_PARSE_QUEUE.add(doc.base);
+                });
+                documentInfo.traverseDependencies(({ doc }) => {
                     FULL_PARSE_QUEUE.add(doc.base);
                 });
             };
@@ -147,6 +141,8 @@ export function scheduleParse() {
 }
 
 export function preParse(doc: TextDocument, schemaOverride?: YamlSchema) {
+    dbg("Parser", `Preparsing ${doc.uri}`);
+    const now = Date.now();
     const { uri } = doc;
     const source = doc.getText();
     const documentInfo = new DocumentInfo(doc);
@@ -189,14 +185,15 @@ export function preParse(doc: TextDocument, schemaOverride?: YamlSchema) {
         });
     });
 
+    const time = Date.now() - now;
+    dbg("Parser", `Completed preparsing ${doc.uri} in ${time}ms`);
+
     return documentInfo;
 }
 
 export function postParse(doc: DocumentInfo) {
-    dbg("Parser", `Postparsing ${doc.uri}`, {
-        uri: doc.uri,
-        rawUri: doc.base.uri, // debug to make sure the uri is correct
-    });
+    dbg("Parser", `Postparsing ${doc.uri}`);
+    const now = Date.now();
     doc.schema.ifPresent((schema) => {
         const errors = schema.runPostValidation(doc, doc.yamlAst.contents!);
         errors.forEach((error) => {
@@ -209,6 +206,8 @@ export function postParse(doc: DocumentInfo) {
                 });
         });
     });
+    const time = Date.now() - now;
+    dbg("Parser", `Completed postparsing ${doc.uri} in ${time}ms`);
     return doc;
 }
 
