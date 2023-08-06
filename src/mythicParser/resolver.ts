@@ -104,7 +104,7 @@ export class Resolver extends ExprVisitor<void> {
 
         /** Whether to keep resolving */
         let keepResolving = true;
-        const mechanicData: Optional<MythicHolder> = getHolderFromName("mechanic", mechanicName);
+        const mechanicData: Optional<MythicHolder> = getHolderFromName("mechanic", mechanicName.toLowerCase());
         mechanicData
             .ifPresent((data) => {
                 this.doc.addHover({
@@ -113,7 +113,7 @@ export class Resolver extends ExprVisitor<void> {
                 });
                 if (data.definition) {
                     this.doc.addGotoDefinitionAndReverseReference(new RangeLink(mechanic.getNameRange(), data.definition.range, data.definition.doc));
-                    this.cachedSkill?.dependencies.push(data.definition);
+                    this.cachedSkill?.addDependency(data.definition);
                     nameHighlight[1].push("mutable");
                 } else {
                     nameHighlight[1].push("defaultLibrary");
