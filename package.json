@@ -1,7 +1,7 @@
 {
     "type": "commonjs",
     "name": "mythic-language-server",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Language Server implementation for MythicMobs configurations.",
     "main": "out/index.js",
     "author": "0tickpulse",
