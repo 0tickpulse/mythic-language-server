@@ -1,5 +1,5 @@
 import { Optional } from "tick-ts-utils";
-import { Diagnostic } from "vscode-languageserver";
+import { Diagnostic, SemanticTokenTypes } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { globalData } from "../../documentManager.js";
 import { server } from "../../index.js";
@@ -8,6 +8,8 @@ import { CustomPosition, CustomRange } from "../../utils/positionsAndRanges.js";
 import { PATH_MAP } from "../schemaSystem/data.js";
 import { YamlSchema } from "../schemaSystem/schemaTypes.js";
 import { DocumentInfo } from "./documentInfo.js";
+import { visit, visitor } from "yaml";
+import { Highlight } from "../../colors.js";
 
 class DocumentQueue {
     #items: TextDocument[] = [];
@@ -151,6 +153,25 @@ export function preParse(doc: TextDocument, schemaOverride?: YamlSchema) {
     const lineLengths = source.split("\n").map((line) => line.length);
     if (contents === null) {
         return documentInfo;
+    }
+
+    if (server.highlightYaml) {
+        const visitor: visitor = {
+            Scalar(key, node) {
+                const range = CustomRange.fromYamlRange(lineLengths, node.range!);
+                const highlightType = (() => {
+                    if (key === "key") {
+                        return SemanticTokenTypes.property;
+                    }
+                    if (key === "value") {
+                        return typeof node.value === "string" ? SemanticTokenTypes.string : SemanticTokenTypes.number;
+                    }
+                    return SemanticTokenTypes.string;
+                })();
+                documentInfo.highlights.push(new Highlight(range, highlightType));
+            },
+        };
+        visit(yamlAst, visitor);
     }
 
     if (schemaOverride === undefined) {
