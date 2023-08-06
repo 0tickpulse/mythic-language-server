@@ -42,4 +42,7 @@ export const globalData = {
     flush(uri: string) {
         this.documents.delete(uri);
     },
+    reset() {
+        this.documents.list.clear();
+    }
 };
