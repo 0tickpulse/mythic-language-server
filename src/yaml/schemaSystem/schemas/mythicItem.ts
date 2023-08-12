@@ -63,7 +63,7 @@ class YItemColor extends YString {
         doc.colorHints.push(
             new ColorHint(range, parsedColor, "Modify item color", (newColor) => ({
                 range,
-                newText: `${newColor.red * 255},${newColor.green * 255},${newColor.blue * 255}`,
+                newText: `${newColor.red},${newColor.green},${newColor.blue}`,
             })),
         );
 
