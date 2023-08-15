@@ -8,6 +8,8 @@ import materials from "../bigData/materials.js";
 import { YMap, YObj, YUnion, YString, YArr, YNum, SchemaValidationError, YamlSchema, YMythicSkill } from "../schemaTypes.js";
 import { mdSeeAlso } from "../../../utils/utils.js";
 import { getNodeValueRange, scalarValue } from "../schemaUtils.js";
+import { YMythicSkillArr } from "./mythicSkill.js";
+import { Resolver } from "../../../mythicParser/resolver.js";
 
 class YItemColor extends YString {
     constructor() {
@@ -195,7 +197,7 @@ export const mythicItemSchema: YamlSchema = new YMap(
             ],
         },
         Skills: {
-            schema: new YArr(new YMythicSkill(true)),
+            schema: new YMythicSkillArr(new YMythicSkill(true)),
             required: false,
             description:
                 "The skills of the item. Requires [🔗 MythicCrucible](https://mythiccraft.io/index.php?resources/crucible-create-unbelievable-mythic-items.2/)" +

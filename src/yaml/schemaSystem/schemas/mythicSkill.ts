@@ -160,7 +160,7 @@ export class YMythicSkillMap extends YamlSchema {
 }
 
 export class YMythicSkillArr extends YamlSchema {
-    constructor(public itemSchema: YMythicSkill, public resolver: Resolver) {
+    constructor(public itemSchema: YMythicSkill, public resolver?: Resolver) {
         super();
     }
     setItemSchema(itemSchema: YMythicSkill) {
@@ -187,7 +187,7 @@ export class YMythicSkillArr extends YamlSchema {
     override postValidate(doc: DocumentInfo, value: Node): SchemaValidationError[] {
         // traverse children
         const errors: SchemaValidationError[] = [];
-        this.itemSchema.resolver = Optional.of(this.resolver);
+        this.itemSchema.resolver = Optional.of(this.resolver ?? new Resolver(doc));
         isCollection(value) &&
             value.items.forEach((item) => {
                 const innerErrors = this.itemSchema.runPostValidation(doc, item as Node);

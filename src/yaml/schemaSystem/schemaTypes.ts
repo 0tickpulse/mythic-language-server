@@ -10,6 +10,7 @@ import { server } from "../../index.js";
 import { cursorValidInRange, getNodeValueRange, getNodeValueYamlRange, scalarValue } from "./schemaUtils.js";
 import { MythicScanner } from "../../mythicParser/scanner.js";
 import { Parser } from "../../mythicParser/parser.js";
+import { dbg } from "../../utils/logging.js";
 
 export class SchemaValidationError {
     message: string;
@@ -622,6 +623,7 @@ export class YMythicSkill extends YamlSchema {
         return "a skill" + (this.supportsTriggers ? "" : " that does not support triggers.");
     }
     override postValidate(doc: DocumentInfo, value: Node): SchemaValidationError[] {
+        dbg("YMythicSkill.postValidate", value);
         if (!isScalar(value)) {
             return [new SchemaValidationError(this, `Expected type ${this.typeText}!`, doc, value)];
         }
