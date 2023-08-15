@@ -136,7 +136,7 @@ export class Resolver extends ExprVisitor<void> {
                     const matchedField = fields.find((field) => field.names.includes(key.lexeme ?? ""))!;
                     // field is valid, add hover
                     this.doc.addHover({
-                        contents: generateHoverForField(mechanicName, "mechanic", key.lexeme!, matchedField, true),
+                        contents: generateHoverForField(mechanicName, "mechanic", key.lexeme, matchedField, true),
                         range: key.range,
                     });
                 }
@@ -196,7 +196,7 @@ export class Resolver extends ExprVisitor<void> {
     override visitTargeterExpr(targeter: TargeterExpr): void {
         const at = targeter.at;
         this.#addHighlight(at.range, SemanticTokenTypes.operator);
-        const name = targeter.identifier.lexeme!;
+        const name = targeter.identifier.lexeme;
         this.#addHighlight(targeter.identifier.range, SemanticTokenTypes.type);
         if (targeter.leftBrace) {
             this.#addHighlight(targeter.leftBrace.range, SemanticTokenTypes.operator);
@@ -223,7 +223,7 @@ export class Resolver extends ExprVisitor<void> {
     override visitInlineConditionExpr(condition: InlineConditionExpr): void {
         const question = condition.question;
         this.#addHighlight(question.range, SemanticTokenTypes.operator);
-        const name = condition.identifier.lexeme!;
+        const name = condition.identifier.lexeme;
         this.#addHighlight(condition.identifier.range, SemanticTokenTypes.function);
         if (condition.leftBrace) {
             this.#addHighlight(condition.leftBrace.range, SemanticTokenTypes.operator);
