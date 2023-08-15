@@ -95,7 +95,6 @@ export function scheduleParse() {
                 diagnostics.set(doc.uri, documentInfo.errors);
             };
             const postAndClear = (doc: TextDocument) => {
-                info("Parser", `Postparsing ${doc.uri}`);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we just set it in the previous closure
                 const documentInfo = postParse(globalData.documents.getDocument(doc.uri)!);
                 globalData.documents.set(documentInfo);
@@ -213,7 +212,7 @@ export function preParse(doc: TextDocument, schemaOverride?: YamlSchema) {
 }
 
 export function postParse(doc: DocumentInfo) {
-    dbg("Parser", `Postparsing ${doc.uri}`);
+    dbg("Parser", `Postparsing ${doc.uri} with schema ${doc.schema.map((schema) => schema.name).otherwise("none")}`);
     const now = Date.now();
     doc.schema.ifPresent((schema) => {
         const errors = schema.runPostValidation(doc, doc.yamlAst.contents!);
