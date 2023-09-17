@@ -7,8 +7,7 @@ import { CustomPosition, CustomRange, r } from "../../utils/positionsAndRanges.j
 import { YamlSchema } from "../schemaSystem/schemaTypes.js";
 import { URI } from "vscode-uri";
 import { globalData } from "../../documentManager.js";
-import { info } from "console";
-import { dbg } from "../../utils/logging.js";
+import { info, dbg } from "../../utils/logging.js";
 import { CachedMythicSkill } from "../../mythicModels.js";
 
 /**
