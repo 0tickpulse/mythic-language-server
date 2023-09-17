@@ -1,14 +1,13 @@
 import { Optional } from "tick-ts-utils";
 import { CompletionItem, Diagnostic, Hover } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
+import { URI } from "vscode-uri";
 import { Document, parseDocument } from "yaml";
 import { ColorHint, Highlight } from "../../colors.js";
+import { CachedMythicSkill } from "../../mythicModels.js";
+import { dbg, info } from "../../utils/logging.js";
 import { CustomPosition, CustomRange, r } from "../../utils/positionsAndRanges.js";
 import { YamlSchema } from "../schemaSystem/schemaTypes.js";
-import { URI } from "vscode-uri";
-import { globalData } from "../../documentManager.js";
-import { info, dbg } from "../../utils/logging.js";
-import { CachedMythicSkill } from "../../mythicModels.js";
 
 /**
  * Describes a link between two ranges in two documents.
