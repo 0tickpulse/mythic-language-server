@@ -1,10 +1,10 @@
 import { Optional } from "tick-ts-utils";
-import { CompletionItem, Diagnostic, Hover } from "vscode-languageserver";
+import { CompletionItem, Diagnostic, DocumentSymbol, Hover, SymbolInformation } from "vscode-languageserver";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import { Document, parseDocument } from "yaml";
 import { ColorHint, Highlight } from "../../colors.js";
-import { CachedMythicSkill } from "../../mythicModels.js";
+import { CachedMythicMob, CachedMythicSkill } from "../../mythicModels.js";
 import { dbg, info } from "../../utils/logging.js";
 import { CustomPosition, CustomRange, r } from "../../utils/positionsAndRanges.js";
 import { YamlSchema } from "../schemaSystem/schemaTypes.js";
@@ -52,6 +52,7 @@ export class DocumentInfo {
     autoCompletions: CompletionItem[] = [];
     uri: string;
     cachedMythicSkills: CachedMythicSkill[] = [];
+    cachedMythicMobs: CachedMythicMob[] = [];
     constructor(
         public base: TextDocument,
         public yamlAst: Document = parseDocument(base.getText(), { keepSourceTokens: true }),
@@ -170,5 +171,28 @@ export class DocumentInfo {
             callback(dependency);
             queue.push(...dependency.dependents);
         }
+    }
+    printStats(): string {
+        return `DocumentInfo(${this.uri})\n` +
+            `    Dependencies: ${this.getAllDependencies().length}\n` +
+            `    Dependents: ${this.getAllDependents().length}\n` +
+            `    Errors: ${this.errors.length}\n` +
+            `    Highlights: ${this.highlights.length}\n` +
+            `    Hovers: ${this.hovers.length}\n` +
+            `    Goto definitions: ${this.gotoDefinitions.length}\n` +
+            `    Goto references: ${this.gotoReferences.length}\n` +
+            `    Color hints: ${this.colorHints.length}\n` +
+            `    Cached mythic skills: ${this.cachedMythicSkills.length}\n` +
+            `    Cached mythic mobs: ${this.cachedMythicMobs.length}\n`;
+    }
+    getSymbols(): DocumentSymbol[] {
+        const symbols: DocumentSymbol[] = [];
+        for (const skill of this.cachedMythicSkills) {
+            symbols.push(skill.symbol);
+        }
+        for (const mob of this.cachedMythicMobs) {
+            symbols.push(mob.symbol);
+        }
+        return symbols;
     }
 }

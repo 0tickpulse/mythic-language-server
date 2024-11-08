@@ -8,13 +8,20 @@ import { generateHover, getHolderFromName } from "../services.js";
 import { InvalidFieldValueError, MythicFieldType } from "../types.js";
 import { GenericError } from "../../errors.js";
 import { Resolver } from "../../mythicParser/resolver.js";
+import { Result } from "tick-ts-utils";
+import { p, r } from "../../utils/positionsAndRanges.js";
+import { dbg } from "../../utils/logging.js";
 
 export class MFMythicSkillParser extends Parser {
-    mythicSkill() {
+    mythicSkill(doc?: DocumentInfo): MythicToken | InlineSkillExpr | undefined {
         if (this.match("Identifier")) {
             return this.previous();
         }
-        this.consume("LeftSquareBracket", "Expected '[' before inline skill!");
+        const lsb = this.consume("LeftSquareBracket", "Expected '[' before inline skill!");
+        if (lsb.isError()) {
+            doc?.addError(lsb.getError());
+            return undefined;
+        }
         const leftSquareBracket = this.previous();
         const dashesAndSkills: [MythicToken, SkillLineExpr][] = [];
         while (!this.check("RightSquareBracket") && !this.isAtEnd()) {
@@ -24,6 +31,9 @@ export class MFMythicSkillParser extends Parser {
             // this.#completionGeneric(["- ", "]"]);
             // dash
             const dash = this.consume("Dash", "Expected '-' after '['!");
+            if (dash.isError()) {
+                continue;
+            }
 
             // optional whitespace
             this.consumeWhitespace();
@@ -32,9 +42,9 @@ export class MFMythicSkillParser extends Parser {
 
             // optional whitespace
             this.consumeWhitespace();
-            dashesAndSkills.push([dash, skill]);
+            dashesAndSkills.push([dash.get(), skill]);
         }
-        const rightSquareBracket = this.consume("RightSquareBracket", "Expected ']' after inline skill!");
+        const rightSquareBracket = this.consume("RightSquareBracket", "Expected ']' after inline skill!").getOrElse(undefined);
         return new InlineSkillExpr(this, this.currentPosition(), leftSquareBracket, dashesAndSkills, rightSquareBracket);
     }
 }
@@ -62,29 +72,24 @@ export class MFMythicSkill extends MythicFieldType {
 
         doc.addError(new InvalidFieldValueError(`Unknown metaskill '${mechanicName}'`, value, identifier.range));
     }
-    static validateInlineSkill(_doc: DocumentInfo, _value: MlcValueExpr, _inlineSkill: InlineSkillExpr) {
-        // nothing for now
+    static validateInlineSkill(doc: DocumentInfo, _value: MlcValueExpr, inlineSkill: InlineSkillExpr) {
+        for (const comment of inlineSkill.comments) {
+            doc.addHighlight(new Highlight(comment.range, SemanticTokenTypes.comment));
+        }
     }
 
     override validate(doc: DocumentInfo, value: MlcValueExpr, _: Resolver): Expr[] {
         const str = value.getSource();
-        const scanner = new MythicScanner(doc, value.range.start.toOffset(doc.lineLengths), str);
+        const scanner = new MythicScanner(doc, value.range.start.toOffset(doc.lineLengths), str, true);
         const tokens = scanner.scanTokens();
-        let expr: InlineSkillExpr | MythicToken;
-        try {
-            expr = new MFMythicSkillParser(tokens).mythicSkill();
-        } catch (e) {
-            if (e instanceof GenericError) {
-                doc.addError(e);
-            }
-            return [];
-        }
+        const expr = new MFMythicSkillParser(tokens).mythicSkill(doc);
+
         if (expr instanceof InlineSkillExpr) {
             MFMythicSkill.validateInlineSkill(doc, value, expr);
             return [expr];
         }
 
-        MFMythicSkill.validateSkillName(doc, value, expr);
+        expr && MFMythicSkill.validateSkillName(doc, value, expr);
 
         return [];
     }

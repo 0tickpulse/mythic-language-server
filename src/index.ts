@@ -15,6 +15,9 @@ import semanticTokensService from "./services/semanticTokensService.js";
 import { dbg, info } from "./utils/logging.js";
 import { appendFile } from "fs";
 import { TextDocument } from "vscode-languageserver-textdocument";
+import { queueFull, scheduleParse } from "./yaml/parser/parseSync.js";
+import documentSymbolService from "./services/documentSymbolService.js";
+import workspaceSymbolService from "./services/workspaceSymbolService.js";
 
 const connectionType = process.argv.includes("--stdio") ? "stdio" : "ipc";
 
@@ -54,6 +57,8 @@ function main() {
     connection?.onCompletionResolve(completionResolveService);
     connection?.onDocumentColor(documentColorService);
     connection?.onColorPresentation(colorPresentationService);
+    connection?.onDocumentSymbol(documentSymbolService);
+    connection?.onWorkspaceSymbol(workspaceSymbolService);
     connection?.onShutdown(() => {
         info(undefined, "Shutting down server...");
     });
@@ -72,6 +77,25 @@ function main() {
             dependencies,
             dependents,
         };
+    });
+    connection?.onRequest("debug/printDocumentInfo", ({ uri }: { uri: string }) => {
+        const docInfo = globalData.documents.getDocument(uri);
+        if (!docInfo) {
+            return "Document not found!";
+        }
+        return docInfo.printStats();
+    });
+    connection?.onRequest("document/forceFullParseDoc", ({ uri }: { uri: string }) => {
+        const docInfo = globalData.documents.getDocument(uri);
+        if (!docInfo) {
+            return "Document not found!";
+        }
+        queueFull(docInfo.base);
+        return "Done!";
+    });
+    connection?.onRequest("document/resendSemanticTokens", () => {
+        connection.languages.semanticTokens.refresh();
+        return "Done!";
     });
 
     manager.onDidChangeContent(didChangeContentService);

@@ -3,7 +3,12 @@ import { join } from "path";
 import { FILE_EXTENSIONS } from "../documentManager.js";
 
 export async function recursive_search(dir: string) : Promise<string[]> {
-    const files = await readdir(dir, { withFileTypes: true });
+    let files;
+    try {
+        files  = await readdir(dir, { withFileTypes: true });
+    } catch (e: unknown) {
+        return [];
+    }
     const result: string[] = [];
     for (const file of files) {
         if (file.isDirectory()) {

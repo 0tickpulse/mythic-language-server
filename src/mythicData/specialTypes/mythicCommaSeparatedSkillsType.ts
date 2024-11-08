@@ -35,18 +35,21 @@ export class MFCommaSeparatedSkillsParser extends MFMythicSkillParser {
                 weight = this.previous();
             }
             this.consumeWhitespace();
-            const commaSeparatedSkill: CommaSeparatedSkill = {
+            const commaSeparatedSkill: Partial<CommaSeparatedSkill> = {
                 skill,
                 weight,
             };
             // required comma, except at the end
             if (!this.isAtEnd()) {
                 const comma = this.consume("Comma", "Expected ',' after skill!");
-                commaSeparatedSkill.comma = comma;
+                if (comma.isError()) {
+                    continue;
+                }
+                commaSeparatedSkill.comma = comma.get();
             }
             // optional whitespace
             this.consumeWhitespace();
-            skills.push(commaSeparatedSkill);
+            commaSeparatedSkill.skill && commaSeparatedSkill.weight && skills.push(commaSeparatedSkill as CommaSeparatedSkill);
         }
         return new CommaSeparatedSkills(this, this.currentPosition(), skills);
     }

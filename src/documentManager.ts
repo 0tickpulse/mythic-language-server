@@ -1,7 +1,7 @@
 import { TextDocuments } from "vscode-languageserver/node.js";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { Dependency, DocumentInfo } from "./yaml/parser/documentInfo.js";
-import { CachedMythicSkill } from "./mythicModels.js";
+import { CachedMythicMob, CachedMythicSkill } from "./mythicModels.js";
 import { warn } from "./utils/logging.js";
 import { Graph } from "./utils/graph.js";
 
@@ -38,6 +38,18 @@ export const globalData = {
                 return globalData.documents.all().flatMap((doc) => doc.cachedMythicSkills);
             },
         },
+        /**
+         * A cached registry of Mythic mobs as a map of document URI to mob.
+         */
+        mobs: {
+            add(mob: CachedMythicMob) {
+                const doc = mob.doc;
+                doc.cachedMythicMobs.push(mob);
+            },
+            all() {
+                return globalData.documents.all().flatMap((doc) => doc.cachedMythicMobs);
+            },
+        }
     },
     flush(uri: string) {
         this.documents.delete(uri);

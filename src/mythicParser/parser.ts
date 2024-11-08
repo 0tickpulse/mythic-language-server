@@ -9,7 +9,7 @@
 // placeholderText = identifier ( + "." + placeholderText );
 // inline skill = "[" + ( "-" + skillLine )* + "]"
 
-import { Optional } from "tick-ts-utils";
+import { Optional, Result } from "tick-ts-utils";
 import { CompletionItem } from "vscode-languageserver";
 import { GenericError } from "../errors.js";
 import { CustomPosition } from "../utils/positionsAndRanges.js";
@@ -29,7 +29,7 @@ import {
 import { MythicScannerResult, MythicToken, MythicTokenType } from "./scanner.js";
 
 export class MythicSkillParseResult {
-    private constructor(public skillLine?: SkillLineExpr, public errors?: GenericError[], public completions?: string[]) {}
+    constructor(public skillLine?: SkillLineExpr, public errors: GenericError[] = [], public completions?: string[]) {}
     static fromSkillLine(skillLine: SkillLineExpr) {
         return new MythicSkillParseResult(skillLine);
     }
@@ -52,12 +52,13 @@ export class Completion {
 }
 
 export class Parser {
-    #current = 0;
-    #tokens: MythicToken[];
+    protected current = 0;
+    protected tokens: MythicToken[];
     #isCompleting = false;
     #completions: CompletionItem[] = [];
+    #errors: GenericError[] = [];
     constructor(public result: MythicScannerResult) {
-        this.#tokens = result.tokens ?? [];
+        this.tokens = result.tokens ?? [];
     }
     completeMythicSkill(): CompletionItem[] {
         this.#isCompleting = true;
@@ -80,7 +81,7 @@ export class Parser {
      * Should only be used by {@link YString}
      */
     parseMlcValue(): Optional<MlcValueExpr> {
-        this.#current = 0;
+        this.current = 0;
         if (this.result.errors?.length ?? 0 > 0) {
             return Optional.empty();
         }
@@ -95,18 +96,24 @@ export class Parser {
         }
     }
     parseMythicSkill(): MythicSkillParseResult {
-        this.#current = 0;
+        this.current = 0;
         if (this.result.errors?.length ?? 0 > 0) {
             return MythicSkillParseResult.fromErrors(this.result.errors ?? []);
         }
-        try {
-            return MythicSkillParseResult.fromSkillLine(this.skillLine());
-        } catch (e) {
-            if (e instanceof GenericError) {
-                return MythicSkillParseResult.fromErrors([e]);
-            }
-            throw e;
-        }
+        // try {
+        //     return MythicSkillParseResult.fromSkillLine(this.skillLine());
+        // } catch (e) {
+        //     if (e instanceof GenericError) {
+        //         return MythicSkillParseResult.fromErrors([e]);
+        //     }
+        //     throw e;
+        // }
+        const skillLine = this.skillLine();
+        return new MythicSkillParseResult(
+            skillLine,
+            this.#errors,
+            this.#completions.map((c) => c.label),
+        );
     }
     protected skillLine(...exitTypes: MythicTokenType[]) {
         // this.#completion(
@@ -129,46 +136,59 @@ export class Parser {
             if (this.isAtEnd()) {
                 break;
             }
-            if (this.matchAll("At")) {
+            if (this.checkAny(...exitTypes)) {
+                break;
+            } else if (this.matchAll("At")) {
                 if (targeter === undefined) {
                     targeter = this.targeter();
                 } else {
-                    throw this.error(this.peek(), "Duplicate targeter!");
+                    this.targeter(); // consume the targeter
+                    this.#errors.push(this.error(this.peek(), "Duplicate targeter!"));
                 }
             } else if (this.matchAll("Tilde")) {
                 if (trigger === undefined) {
                     trigger = this.trigger();
                 } else {
-                    throw this.error(this.peek(), "Duplicate trigger!");
+                    this.trigger(); // consume the trigger
+                    this.#errors.push(this.error(this.peek(), "Duplicate trigger!"));
                 }
             } else if (this.matchAll("Question")) {
-                conditions.push(this.inlineCondition());
+                const condition = this.inlineCondition();
+                if (condition !== undefined) {
+                    conditions.push(condition);
+                }
             } else if (this.matchAll("Number")) {
                 chance = this.previous();
             } else if (this.checkAny("Equal", "GreaterThan", "LessThan")) {
                 healthModifier = this.healthModifier();
-            } else if (this.checkAny(...exitTypes)) {
-                break;
             } else {
-                console.trace("Exit types", exitTypes);
-                throw this.error(
-                    this.peek(),
-                    `Expected targeter, trigger or condition, but found ${this.peek().lexeme}! \n(For debugging) Exit types: ${exitTypes.join(", ")}`,
+                this.#errors.push(
+                    this.error(
+                        this.peek(),
+                        `Expected targeter, trigger or condition, but found ${this.peek().lexeme}! \n(For debugging) Exit types: ${exitTypes.join(
+                            ", ",
+                        )}`,
+                    ),
                 );
+                this.advance();
             }
         }
 
         return new SkillLineExpr(this, this.currentPosition(), mechanic, targeter, trigger, conditions, chance, healthModifier);
     }
     protected mechanic() {
-        const name = this.genericString(["LeftBrace", "Space"], "Expected mechanic name!");
+        const nameResult = this.genericString(["LeftBrace", "Space"], "Expected mechanic name!");
+        if (nameResult.isError()) {
+            return void this.#errors.push(nameResult.getError());
+        }
+        const name = nameResult.get();
         if (name.values.length === 0) {
             throw this.error(this.peek(), "Expected mechanic name!");
         }
         if (this.match("LeftBrace")) {
             const leftBrace = this.previous();
             const mlc = this.mlc();
-            const rightBrace = this.consume("RightBrace", "Expected '}' after mechanic mlc!");
+            const rightBrace = this.consume("RightBrace", "Expected '}' after mechanic mlc!").getOrElse(undefined);
             return new MechanicExpr(this, this.currentPosition(), name, leftBrace, mlc, rightBrace);
         }
         return new MechanicExpr(this, this.currentPosition(), name, undefined, [], undefined);
@@ -182,24 +202,32 @@ export class Parser {
         //         return item;
         //     })
         // );
-        const name = this.consume("Identifier", "Expected targeter name!");
+        const nameResult = this.consume("Identifier", "Expected targeter name!");
+        if (nameResult.isError()) {
+            return void this.#errors.push(nameResult.getError());
+        }
+        const name = nameResult.get();
         // this.#completionGeneric(["{"]);
         if (this.match("LeftBrace")) {
             const leftBrace = this.previous();
             const mlc = this.mlc();
-            const rightBrace = this.consume("RightBrace", "Expected '}' after targeter mlc!");
+            const rightBrace = this.consume("RightBrace", "Expected '}' after targeter mlc!").getOrElse(undefined);
             return new TargeterExpr(this, this.currentPosition(), at, name, leftBrace, mlc, rightBrace);
         }
         return new TargeterExpr(this, this.currentPosition(), at, name, undefined, [], undefined);
     }
     protected trigger() {
         const caret = this.previous();
-        const name = this.genericString(["LeftBrace", "Space"], "Expected trigger name!");
+        const nameResult = this.genericString(["LeftBrace", "Space"], "Expected trigger name!");
+        if (nameResult.isError()) {
+            return void this.#errors.push(nameResult.getError());
+        }
+        const name = nameResult.get();
         let arg: GenericStringExpr | undefined = undefined;
         let colon: MythicToken | undefined = undefined;
         if (this.match("Colon")) {
             colon = this.previous();
-            arg = this.genericString(["LeftBrace", "Space"], "Expected trigger argument after ':'!");
+            arg = this.genericString(["LeftBrace", "Space"], "Expected trigger argument after ':'!").getOrElse(undefined);
         }
         return new TriggerExpr(this, this.currentPosition(), caret, name, colon, arg);
     }
@@ -222,12 +250,16 @@ export class Parser {
         //         return item;
         //     })
         // );
-        const name = this.consume("Identifier", "Expected inline condition name!");
+        const nameResult = this.consume("Identifier", "Expected inline condition name!");
+        if (nameResult.isError()) {
+            return undefined;
+        }
+        const name = nameResult.get();
         // this.#completionGeneric(["{"]);
         if (this.match("LeftBrace")) {
             const leftBrace = this.previous();
             const mlc = this.mlc();
-            const rightBrace = this.consume("RightBrace", "Expected '}' after inline condition mlc!");
+            const rightBrace = this.consume("RightBrace", "Expected '}' after inline condition mlc!").getOrElse(undefined);
             return new InlineConditionExpr(this, this.currentPosition(), question, name, leftBrace, mlc, rightBrace, not, trigger);
         }
         return new InlineConditionExpr(this, this.currentPosition(), question, name, undefined, [], undefined, not, trigger);
@@ -235,17 +267,30 @@ export class Parser {
 
     protected healthModifier() {
         // healthModifier = ( ( "<" | ">" ) + number ( + percent )? ) | ( "=" + number ( + percent )? ( + "-" + number ( + percent )? )? )\
-        const operator = this.consumeAny(["Equal", "GreaterThan", "LessThan"], "Expected health modifier operator!");
-        const min: [MythicToken, MythicToken?] = [this.consume("Number", "Expected health modifier value!")];
+        const operatorResult = this.consumeAny(["Equal", "GreaterThan", "LessThan"], "Expected health modifier operator!");
+        if (operatorResult.isError()) {
+            return void this.#errors.push(operatorResult.getError());
+        }
+        const operator = operatorResult.get();
+
+        const numberResult = this.consume("Number", "Expected health modifier value!");
+        if (numberResult.isError()) {
+            return void this.#errors.push(numberResult.getError());
+        }
+        const number = numberResult.get();
+        const min: [MythicToken, MythicToken?] = [number];
         if (this.check("Percent")) {
             min.push(this.advance());
         }
         if (operator.type === "Equal" && this.match("Dash")) {
-            const max: [MythicToken, MythicToken?] = [this.consume("Number", "Expected second health modifier value!")];
-            if (this.check("Percent")) {
-                max.push(this.advance());
+            const numberResult = this.consume("Number", "Expected second health modifier value!");
+            if (numberResult.isOk()) {
+                const max: [MythicToken, MythicToken?] = [numberResult.get()];
+                if (this.check("Percent")) {
+                    max.push(this.advance());
+                }
+                return new HealthModifierExpr(this, this.currentPosition(), operator, [min, max]);
             }
-            return new HealthModifierExpr(this, this.currentPosition(), operator, [min, max]);
         }
         return new HealthModifierExpr(this, this.currentPosition(), operator, min);
     }
@@ -263,10 +308,12 @@ export class Parser {
             }
             this.consumeWhitespace();
             const key = this.consume("Identifier", "Expected mlc key!");
+            key.ifOk((k) => {
+                const equals = this.consume("Equal", "Expected '=' after mlc key!").getOrElse(undefined);
+                const value = this.mlcValue();
+                mlcs.push(new MlcExpr(this, this.currentPosition(), k, equals, value, semicolon));
+            });
             // this.#completionGeneric(["="]);
-            const equals = this.consume("Equal", "Expected '=' after mlc key!");
-            const value = this.mlcValue();
-            mlcs.push(new MlcExpr(this, this.currentPosition(), key, equals, value, semicolon));
             // this.#completionGeneric([";", "}"]);
             this.consumeWhitespace();
             // this.#completionGeneric([";", "}"]);
@@ -276,19 +323,22 @@ export class Parser {
     }
     protected mlcValue() {
         const parts: (MythicToken[] | MlcPlaceholderExpr)[] = [];
-        let start = this.#current;
+        let start = this.current;
         const startPos = this.currentPosition();
         while (!this.check("Semicolon") && !this.check("RightBrace") && !this.isAtEnd()) {
             if (this.match("LessThan")) {
                 // remove leading <
-                parts.push(this.#tokens.slice(start, this.#current - 1));
-                parts.push(this.placeholder());
-                start = this.#current;
+                parts.push(this.tokens.slice(start, this.current - 1));
+                const placeholder = this.placeholder();
+                if (placeholder !== undefined) {
+                    parts.push(placeholder);
+                }
+                start = this.current;
             } else {
                 this.advanceWithBrace();
             }
         }
-        parts.push(this.#tokens.slice(start, this.#current));
+        parts.push(this.tokens.slice(start, this.current));
         return new MlcValueExpr(this, startPos, parts);
     }
     /**
@@ -318,31 +368,50 @@ export class Parser {
         const leftSquareBracket = this.previous();
         const parts: [GenericStringExpr, MythicToken?, MlcExpr[]?, MythicToken?][] = [];
         const dots: MythicToken[] = [];
-        const part: [GenericStringExpr, MythicToken?, MlcExpr[]?, MythicToken?] = [this.genericString(["GreaterThan", "Dot", "LeftBrace"])];
+
+        const part1Result = this.genericString(["GreaterThan", "Dot", "LeftBrace"]);
+        if (part1Result.isError()) {
+            return void this.#errors.push(part1Result.getError());
+        }
+        const part1 = part1Result.get();
+        const part: [GenericStringExpr, MythicToken?, MlcExpr[]?, MythicToken?] = [part1];
         if (this.match("LeftBrace")) {
             part.push(this.previous());
             part.push(this.mlc());
-            part.push(this.consume("RightBrace", "Expected '}' after placeholder mlc!"));
+            const rb = this.consume("RightBrace", "Expected '}' after placeholder mlc!");
+            rb.ifOkOrElse(
+                (rb) => part.push(rb),
+                (e) => this.#errors.push(e),
+            );
         }
         parts.push(part);
         // this.#completionGeneric([".", ">"]);
         while (this.match("Dot") && !this.isAtEnd()) {
             dots.push(this.previous());
-            const part: [GenericStringExpr, MythicToken?, MlcExpr[]?, MythicToken?] = [this.genericString(["GreaterThan", "Dot", "LeftBrace"])];
+            const part1Result = this.genericString(["GreaterThan", "Dot", "LeftBrace"]);
+            if (part1Result.isError()) {
+                return void this.#errors.push(part1Result.getError());
+            }
+            const part1 = part1Result.get();
+            const part: [GenericStringExpr, MythicToken?, MlcExpr[]?, MythicToken?] = [part1];
             if (this.match("LeftBrace")) {
                 part.push(this.previous());
                 part.push(this.mlc());
-                part.push(this.consume("RightBrace", "Expected '}' after placeholder mlc!"));
+                const rb = this.consume("RightBrace", "Expected '}' after placeholder mlc!");
+                rb.ifOkOrElse(
+                    (rb) => part.push(rb),
+                    (e) => this.#errors.push(e),
+                );
             }
             parts.push(part);
             // this.#completionGeneric([".", ">"]);
         }
-        const rightSquareBracket = this.consume("GreaterThan", "Expected '>' after placeholder!");
+        const rightSquareBracket = this.consume("GreaterThan", "Expected '>' after placeholder!").getOrElse(undefined);
         return new MlcPlaceholderExpr(this, this.currentPosition(), leftSquareBracket, parts, dots, rightSquareBracket);
     }
 
-    protected genericString(end: MythicTokenType[], error = "Expected a string!") {
-        const start = this.#current;
+    protected genericString(end: MythicTokenType[], error = "Expected a string!"): Result<GenericStringExpr, GenericError> {
+        const start = this.current;
         while (!this.checkAny(...end) && !this.isAtEnd()) {
             if (this.check("LeftBrace")) {
                 while (!this.check("RightBrace")) {
@@ -356,31 +425,33 @@ export class Parser {
             }
             this.advance();
         }
-        const string = this.#tokens.slice(start, this.#current);
+        const string = this.tokens.slice(start, this.current);
         if (string.length === 0) {
-            throw this.error(
-                this.peek(),
-                `${error} (End: ${end.join(", ")}, start: ${start}, current: ${this.#current}, checkAny: ${this.checkAny(...end)}, currentType ${
-                    this.peek()?.type ?? ""
-                })`,
+            return Result.error(
+                this.error(
+                    this.peek(),
+                    `${error} (End: ${end.join(", ")}, start: ${start}, current: ${this.current}, checkAny: ${this.checkAny(...end)}, currentType ${
+                        this.peek()?.type ?? ""
+                    })`,
+                ),
             );
             // throw this.#error(this.#peek(), error);
         }
-        return new GenericStringExpr(this, this.currentPosition(), string);
+        return Result.ok(new GenericStringExpr(this, this.currentPosition(), string));
     }
 
-    protected consume(type: MythicTokenType, message: string): MythicToken {
+    protected consume(type: MythicTokenType, message: string): Result<MythicToken, GenericError> {
         if (this.check(type)) {
-            return this.advance();
+            return Result.ok(this.advance());
         }
-        throw this.error(this.peek(), `${message} (Got ${this.peek()?.type ?? ""} '${this.peek()?.lexeme}')`);
+        return Result.error(this.error(this.peek(), `${message} (Got ${this.peek()?.type ?? ""} '${this.peek()?.lexeme}')`));
     }
 
-    protected consumeAny(types: MythicTokenType[], message: string): MythicToken {
+    protected consumeAny(types: MythicTokenType[], message: string): Result<MythicToken, GenericError> {
         if (this.checkAny(...types)) {
-            return this.advance();
+            return Result.ok(this.advance());
         }
-        throw this.error(this.peek(), `${message} (Got ${this.peek()?.type ?? ""} '${this.peek()?.lexeme}')`);
+        return Result.error(this.error(this.peek(), `${message} (Got ${this.peek()?.type ?? ""} '${this.peek()?.lexeme}')`));
     }
 
     protected consumeWhitespace() {
@@ -429,7 +500,7 @@ export class Parser {
     }
     protected advance(): MythicToken {
         if (!this.isAtEnd()) {
-            this.#current++;
+            this.current++;
         }
         return this.previous();
     }
@@ -437,13 +508,19 @@ export class Parser {
         return this.peek().type === "Eof";
     }
     protected peek(): MythicToken {
-        return this.#tokens[this.#current];
+        return this.tokens[this.current];
     }
     protected peekNext(): MythicToken {
-        return this.#tokens[this.#current + 1];
+        return this.tokens[this.current + 1];
+    }
+    /**
+     * Please don't use this method too much due to performance reasons.
+     */
+    protected peekNextNext(): MythicToken {
+        return this.tokens[this.current + 2];
     }
     protected previous(): MythicToken {
-        return this.#tokens[this.#current - 1];
+        return this.tokens[this.current - 1];
     }
     protected error(token: MythicToken, message: string): GenericError {
         return new GenericError(token.range, this.result.source ?? "", message, token);

@@ -11,7 +11,7 @@ import { SemanticTokenTypes } from "vscode-languageserver";
 import { Resolver } from "../../mythicParser/resolver.js";
 
 class SwitchCases {
-    constructor(parser: Parser, start: Position, readonly cases: [MythicToken, GenericStringExpr, MythicToken, MythicToken | InlineSkillExpr][]) {}
+    constructor(parser: Parser, start: Position, readonly cases: [MythicToken, GenericStringExpr, MythicToken, MythicToken | InlineSkillExpr | undefined][]) {}
 }
 
 export class MFSwitchCasesParser extends MFMythicSkillParser {
@@ -19,27 +19,36 @@ export class MFSwitchCasesParser extends MFMythicSkillParser {
         // syntax:
         // ("case" GenericString "=" MythicSkill)*
 
-        const cases: [MythicToken, GenericStringExpr, MythicToken, MythicToken | InlineSkillExpr][] = [];
+        const cases: [MythicToken, GenericStringExpr, MythicToken, MythicToken | InlineSkillExpr | undefined][] = [];
         while (!this.isAtEnd()) {
             // optional whitespace
             this.consumeWhitespace();
             // "case"
             const caseKeyword = this.consume("Identifier", "Expected 'case'!");
+            if (caseKeyword.isError()) {
+                continue;
+            }
             // optional whitespace
             this.consumeWhitespace();
             // GenericString
             const genericString = this.genericString(["Equal"], "Requires a case!");
+            if (genericString.isError()) {
+                continue;
+            }
             // optional whitespace
             this.consumeWhitespace();
             // "="
             const equal = this.consume("Equal", "Expected '='!");
+            if (equal.isError()) {
+                continue;
+            }
             // optional whitespace
             this.consumeWhitespace();
             // MythicSkill
             const mythicSkill = this.mythicSkill();
             this.consumeWhitespace();
 
-            cases.push([caseKeyword, genericString, equal, mythicSkill]);
+            cases.push([caseKeyword.get(), genericString.get(), equal.get(), mythicSkill]);
         }
         return new SwitchCases(this, this.currentPosition(), cases);
     }
@@ -87,7 +96,7 @@ export class MFSwitchCases extends MythicFieldType {
                 MFMythicSkill.validateInlineSkill(doc, value, mythicSkill);
                 toVisit.push(mythicSkill);
             } else {
-                MFMythicSkill.validateSkillName(doc, value, mythicSkill);
+                mythicSkill && MFMythicSkill.validateSkillName(doc, value, mythicSkill);
             }
         }
         return toVisit;

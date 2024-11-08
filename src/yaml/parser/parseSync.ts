@@ -100,6 +100,7 @@ export function scheduleParse() {
                 globalData.documents.set(documentInfo);
                 addDependents(doc);
                 diagnostics.set(doc.uri, documentInfo.errors);
+                dbg("Parser", documentInfo.printStats());
                 FULL_PARSE_QUEUE.remove(doc);
             };
             const addDependents = (doc: TextDocument) => {
@@ -150,6 +151,7 @@ export function preParse(doc: TextDocument, schemaOverride?: YamlSchema) {
     const { yamlAst } = documentInfo;
     const { contents } = yamlAst;
     const lineLengths = source.split("\n").map((line) => line.length);
+    
     if (contents === null) {
         return documentInfo;
     }

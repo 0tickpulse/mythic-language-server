@@ -21,6 +21,7 @@ import {
     ExprWithMlcs,
     GenericStringExpr,
     HealthModifierExpr,
+    InlineCommentExpr,
     InlineConditionExpr,
     InlineSkillExpr,
     MechanicExpr,
@@ -238,7 +239,7 @@ export class Resolver extends ExprVisitor<void> {
     override visitMlcExpr(mlc: MlcExpr): void {
         const { identifier, equals, semicolon } = mlc;
         this.#addHighlight(identifier.range, SemanticTokenTypes.property);
-        this.#addHighlight(equals.range, SemanticTokenTypes.operator);
+        equals && this.#addHighlight(equals.range, SemanticTokenTypes.operator);
         if (semicolon !== undefined) {
             this.#addHighlight(semicolon.range, SemanticTokenTypes.operator);
         }
@@ -254,7 +255,7 @@ export class Resolver extends ExprVisitor<void> {
     }
     override visitMlcPlaceholderExpr(mlcPlaceholder: MlcPlaceholderExpr): void {
         const { greaterThanBracket, lessThanBracket } = mlcPlaceholder;
-        this.#addHighlight(greaterThanBracket.range, SemanticTokenTypes.comment);
+        greaterThanBracket && this.#addHighlight(greaterThanBracket.range, SemanticTokenTypes.comment);
         this.#addHighlight(lessThanBracket.range, SemanticTokenTypes.comment);
 
         for (const identifier of mlcPlaceholder.identifiers) {
@@ -300,7 +301,7 @@ export class Resolver extends ExprVisitor<void> {
     override visitInlineSkillExpr(inlineSkill: InlineSkillExpr): void {
         const { leftSquareBracket, rightSquareBracket } = inlineSkill;
         this.#addHighlight(leftSquareBracket.range, SemanticTokenTypes.operator);
-        this.#addHighlight(rightSquareBracket.range, SemanticTokenTypes.operator);
+        rightSquareBracket && this.#addHighlight(rightSquareBracket.range, SemanticTokenTypes.operator);
         for (const expr of inlineSkill.skills) {
             if (expr[1].trigger !== undefined) {
                 this.#addError("Inline skills cannot have triggers", expr[1].trigger);
@@ -351,6 +352,10 @@ export class Resolver extends ExprVisitor<void> {
                 this.#addHighlight(token.range, SemanticTokenTypes.number);
             }
         }
+    }
+    override visitInlineCommentExpr(inlineComment: InlineCommentExpr): void {
+        const range = inlineComment.range;
+        this.doc.addHighlight(new Highlight(range, SemanticTokenTypes.comment));
     }
     override visitGenericStringExpr(_: GenericStringExpr): void {
         todo();

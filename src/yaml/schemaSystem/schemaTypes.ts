@@ -623,7 +623,6 @@ export class YMythicSkill extends YamlSchema {
         return "a skill" + (this.supportsTriggers ? "" : " that does not support triggers.");
     }
     override postValidate(doc: DocumentInfo, value: Node): SchemaValidationError[] {
-        dbg("YMythicSkill.postValidate", value);
         if (!isScalar(value)) {
             return [new SchemaValidationError(this, `Expected type ${this.typeText}!`, doc, value)];
         }
@@ -648,9 +647,7 @@ export class YMythicSkill extends YamlSchema {
 
         const ast = getAst(doc, rangeOffset[0], skillLine);
         const errors: SchemaValidationError[] = [];
-        if (ast.hasErrors()) {
-            errors.push(...ast.errors!.map((error) => new SchemaValidationError(this, error.message, doc, value, error.range)));
-        }
+        errors.push(...ast.errors.map((error) => new SchemaValidationError(this, error.message, doc, value, error.range)));
 
         ast.skillLine &&
             this.resolver.ifPresent((r) => {

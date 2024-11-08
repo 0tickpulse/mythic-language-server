@@ -61,3 +61,11 @@ export function sumUsingBitFlags(numbers: number[]): number {
     }
     return sum;
 }
+
+export function strictParseNumber(value: string): number | undefined {
+    const parsed = Number(value);
+    if (isNaN(parsed)) {
+        return undefined;
+    }
+    return parsed;
+}

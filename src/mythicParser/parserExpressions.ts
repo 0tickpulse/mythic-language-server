@@ -1,6 +1,6 @@
 import { compare } from "tick-ts-utils";
 import { Position } from "vscode-languageserver-textdocument";
-import { CustomPosition, CustomRange, r } from "../utils/positionsAndRanges.js";
+import { CustomPosition, CustomRange, p, r } from "../utils/positionsAndRanges.js";
 import { Parser } from "./parser.js";
 import { MythicToken } from "./scanner.js";
 
@@ -43,6 +43,8 @@ export abstract class ExprVisitor<T> {
 
     abstract visitHealthModifierExpr(healthModifier: HealthModifierExpr): T;
 
+    abstract visitInlineCommentExpr(inlineComment: InlineCommentExpr): T;
+
     abstract visitGenericStringExpr(genericString: GenericStringExpr): T;
 }
 
@@ -76,7 +78,7 @@ export class SkillLineExpr extends Expr {
     constructor(
         readonly parser: Parser,
         readonly start: Position,
-        readonly mechanic: MechanicExpr,
+        readonly mechanic: MechanicExpr | undefined,
         readonly targeter: TargeterExpr | undefined,
         readonly trigger: TriggerExpr | undefined,
         readonly conditions: InlineConditionExpr[] | undefined,
@@ -84,8 +86,8 @@ export class SkillLineExpr extends Expr {
         readonly healthModifier: HealthModifierExpr | undefined,
     ) {
         super(parser, start);
-        const rStart = this.mechanic.range.start;
-        let rEnd = this.mechanic.range.end;
+        const rStart = p(start);
+        let rEnd = this.mechanic?.range.end ?? rStart;
         for (const expr of [this.mechanic, this.targeter, this.trigger, this.conditions, this.healthModifier].flat()) {
             if (expr !== undefined && compare(expr.range.end, rEnd) === 1) {
                 rEnd = expr.range.end;
@@ -95,14 +97,14 @@ export class SkillLineExpr extends Expr {
     }
 
     override printAST(): string {
-        return `(SkillLine Mechanic: ${this.mechanic.printAST()}, Targeter: ${this.targeter?.printAST()}, Trigger: ${this.trigger?.printAST()}, Conditions: ${this.conditions
+        return `(SkillLine Mechanic: ${this.mechanic?.printAST()}, Targeter: ${this.targeter?.printAST()}, Trigger: ${this.trigger?.printAST()}, Conditions: ${this.conditions
             ?.map((c) => c.printAST())
             .join(" ")}) Chance: ${this.chance?.lexeme} HealthModifier: ${this.healthModifier?.printAST()}`;
     }
 
     toJson() {
         return {
-            mechanic: this.mechanic.toJson(),
+            mechanic: this.mechanic?.toJson(),
             targeter: this.targeter?.toJson(),
             trigger: this.trigger?.toJson(),
             conditions: this.conditions?.map((c) => c.toJson()),
@@ -111,7 +113,7 @@ export class SkillLineExpr extends Expr {
 
     toSimpleJson(): object {
         return {
-            mechanic: this.mechanic.formatSource(),
+            mechanic: this.mechanic?.formatSource(),
             targeter: this.targeter?.formatSource(),
             trigger: this.trigger?.formatSource(),
             conditions: this.conditions?.map((c) => c.formatSource()),
@@ -309,7 +311,7 @@ export class MlcExpr extends Expr {
         readonly parser: Parser,
         readonly start: Position,
         readonly identifier: MythicToken,
-        readonly equals: MythicToken,
+        readonly equals: MythicToken | undefined,
         readonly value: MlcValueExpr | InlineSkillExpr,
         readonly semicolon: MythicToken | undefined,
     ) {
@@ -368,7 +370,7 @@ export class MlcValueExpr extends Expr {
         }
         const last = this.identifiers.at(-1);
         if (last instanceof MlcPlaceholderExpr) {
-            return last.greaterThanBracket.range.end;
+            return last.greaterThanBracket?.range.end ?? last.identifiers.at(-1)![0].range.end;
         }
         if (last && last.length > 0) {
             return last[last.length - 1].range.end;
@@ -388,10 +390,13 @@ export class MlcPlaceholderExpr extends Expr {
         readonly lessThanBracket: MythicToken,
         readonly identifiers: [GenericStringExpr, MythicToken?, MlcExpr[]?, MythicToken?][],
         readonly dots: MythicToken[],
-        readonly greaterThanBracket: MythicToken,
+        readonly greaterThanBracket: MythicToken | undefined,
     ) {
         super(parser, start);
-        this.range = r(this.lessThanBracket.range.start, this.greaterThanBracket.range.end);
+        this.range = r(
+            this.lessThanBracket.range.start,
+            this.greaterThanBracket?.range.end ?? /* last identifier */ this.identifiers.at(-1)![0].range.end,
+        );
     }
 
     override printAST(): string {
@@ -419,10 +424,11 @@ export class InlineSkillExpr extends Expr {
         readonly start: Position,
         readonly leftSquareBracket: MythicToken,
         readonly skills: [MythicToken, SkillLineExpr][],
-        readonly rightSquareBracket: MythicToken,
+        readonly rightSquareBracket: MythicToken | undefined,
+        readonly comments: MythicToken[] = [],
     ) {
         super(parser, start);
-        this.range = r(this.leftSquareBracket.range.start, this.rightSquareBracket.range.end);
+        this.range = r(this.leftSquareBracket.range.start, this.rightSquareBracket?.range.end ?? this.skills.at(-1)![1].range.end);
     }
 
     override printAST(): string {
@@ -494,6 +500,30 @@ export class HealthModifierExpr extends Expr {
 
     override accept<T>(visitor: ExprVisitor<T>): T {
         return visitor.visitHealthModifierExpr(this);
+    }
+}
+
+export class InlineCommentExpr extends Expr {
+    // syntax: <#> comment
+    // e.g.
+    // <#> This is a comment
+    constructor(readonly parser: Parser, readonly start: Position, readonly comment: GenericStringExpr) {
+        super(parser, start);
+        this.range = r(p(this.start), this.comment.range.end);
+    }
+    override printAST(): string {
+        return `(InlineComment ${this.comment.printAST()})`;
+    }
+    override toJson(): object {
+        return {
+            comment: this.comment.value(),
+        };
+    }
+    override formatSource() {
+        return `<#>${this.comment.value()}`;
+    }
+    override accept<T>(visitor: ExprVisitor<T>): T {
+        return visitor.visitInlineCommentExpr(this);
     }
 }
 

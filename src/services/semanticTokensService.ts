@@ -2,13 +2,14 @@ import {
     CancellationToken,
     ResultProgressReporter,
     SemanticTokens,
+    SemanticTokensBuilder,
     SemanticTokensParams,
     SemanticTokensPartialResult,
     WorkDoneProgressReporter,
 } from "vscode-languageserver";
 import { globalData } from "../documentManager.js";
 import { FULL_PARSE_QUEUE, PARTIAL_PARSE_QUEUE } from "../yaml/parser/parseSync.js";
-import { logEvent } from "../utils/logging.js";
+import { dbg, logEvent } from "../utils/logging.js";
 
 // /**
 //  * Map of document URIs to semantic tokens.
@@ -26,6 +27,7 @@ export default async ({ textDocument }: SemanticTokensParams): Promise<SemanticT
         logEvent("semanticTokensService", textDocument, "(no document)");
         return null as unknown as SemanticTokens; // the lsp spec allows null to be returned, but the typescript types don't. this should hopefully be fixed soon
     }
+    dbg("semanticTokensService", doc.printStats());
     const { highlights } = doc;
 
     if (PARTIAL_PARSE_QUEUE.size > 0 && FULL_PARSE_QUEUE.size > 0) {
@@ -56,5 +58,7 @@ export default async ({ textDocument }: SemanticTokensParams): Promise<SemanticT
         lastLine = highlight.range.start.line;
         lastChar = highlight.range.start.character;
     }
+    logEvent("semanticTokensService", textDocument, `(Final token result: ${tokens})`);
+
     return { data: tokens };
 };

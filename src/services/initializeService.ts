@@ -54,6 +54,8 @@ export default async (params: InitializeParams): Promise<InitializeResult> => {
                     tokenModifiers: SEMANTIC_TOKEN_MODIFIERS as unknown as string[], // type conversion because we want to convert from a readonly array to a normal array
                 },
             },
+            documentSymbolProvider: true,
+            workspaceSymbolProvider: true,
         },
     };
 };

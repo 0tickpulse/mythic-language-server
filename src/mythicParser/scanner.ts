@@ -1,4 +1,5 @@
 import { GenericError } from "../errors.js";
+import { dbg } from "../utils/logging.js";
 import { CustomPosition, CustomRange, r } from "../utils/positionsAndRanges.js";
 import { DocumentInfo } from "../yaml/parser/documentInfo.js";
 
@@ -18,10 +19,12 @@ export const TOKEN_TYPE = [
     "Colon",
     "LessThan",
     "GreaterThan",
+    "Hash",
     "Dot",
     "Percent",
     "Identifier",
     "String",
+    "Comment",
     "Number",
     "Space",
     "Eof",
@@ -48,6 +51,7 @@ export class MythicToken {
         readonly lexeme: string,
         readonly start: number,
         readonly current: number,
+        readonly line = 0,
     ) {
         const lineLengths = doc.lineLengths;
         this.range = r(CustomPosition.fromOffset(lineLengths, this.start), CustomPosition.fromOffset(lineLengths, this.current));
@@ -88,8 +92,35 @@ export class MythicScanner {
         ",": (scanner: MythicScanner) => scanner.#addToken("Comma"),
         "!": (scanner: MythicScanner) => scanner.#addToken("Exclamation"),
         ":": (scanner: MythicScanner) => scanner.#addToken("Colon"),
-        "<": (scanner: MythicScanner) => scanner.#addToken("LessThan"),
+        "<": (scanner: MythicScanner) => {
+            // special case: <#> is a comment
+            dbg("Scanner", "Found <, checking for comments");
+            dbg("Scanner", "peek() =", scanner.#peek());
+            dbg("Scanner", "peekNext() =", scanner.#peekNext());
+            dbg("Scanner", "allowComments =", scanner.allowComments);
+            if (scanner.#peek() === "#" && scanner.#peekNext() === ">" && scanner.allowComments) {
+                dbg("Scanner", "Found comment");
+                while (scanner.#peek() !== "\n" && !scanner.#isAtEnd()) {
+                    scanner.#advance();
+                }
+                const text = this.#source.substring(this.#start, this.#current);
+                this.comments.push(
+                    new MythicToken(
+                        this.doc,
+                        this.doc.source,
+                        "Comment",
+                        text,
+                        this.#start + this.initialOffset,
+                        this.#current + this.initialOffset,
+                        this.#line,
+                    ),
+                );
+            } else {
+                scanner.#addToken("LessThan");
+            }
+        },
         ">": (scanner: MythicScanner) => scanner.#addToken("GreaterThan"),
+        "#": (scanner: MythicScanner) => scanner.#addToken("Hash"),
         ".": (scanner: MythicScanner) => scanner.#addToken("Dot"),
         "%": (scanner: MythicScanner) => scanner.#addToken("Percent"),
         " ": (scanner: MythicScanner) => scanner.#addToken("Space"),
@@ -99,7 +130,10 @@ export class MythicScanner {
         "\t": () => {
             /* nothing */
         },
-        "\n": (scanner: MythicScanner) => scanner.#line++,
+        "\n": (scanner: MythicScanner) => {
+            scanner.#line++;
+            scanner.#addToken("Space");
+        },
         '"': (scanner: MythicScanner) => scanner.#string(),
     };
     /* eslint-enable @typescript-eslint/naming-convention */
@@ -108,8 +142,17 @@ export class MythicScanner {
     #current = 0;
     #line = 1;
     #source: string;
+    /**
+     * Comments are stored separately from tokens because they are not part of the Mythic Skill Line syntax.
+     */
+    comments: MythicToken[] = [];
 
-    constructor(public doc: DocumentInfo, public initialOffset: number, source: string) {
+    constructor(
+        public doc: DocumentInfo,
+        public initialOffset: number,
+        source: string,
+        public allowComments = false,
+    ) {
         this.#source = source;
     }
 
@@ -119,7 +162,9 @@ export class MythicScanner {
                 this.#start = this.#current;
                 this.scanToken();
             }
-            this.#tokens.push(new MythicToken(this.doc, this.#source, "Eof", "", this.#start + this.initialOffset, this.#current + this.initialOffset));
+            this.#tokens.push(
+                new MythicToken(this.doc, this.#source, "Eof", "", this.#start + this.initialOffset, this.#current + this.initialOffset),
+            );
             return { tokens: this.#tokens, errors: [], source: this.doc.source };
         } catch (e: unknown) {
             return { errors: [e as GenericError], source: this.doc.source };
@@ -203,7 +248,9 @@ export class MythicScanner {
 
     #addToken(type: MythicTokenType): void {
         const text = this.#source.substring(this.#start, this.#current);
-        this.#tokens.push(new MythicToken(this.doc, this.doc.source, type, text, this.#start + this.initialOffset, this.#current + this.initialOffset));
+        this.#tokens.push(
+            new MythicToken(this.doc, this.doc.source, type, text, this.#start + this.initialOffset, this.#current + this.initialOffset, this.#line),
+        );
     }
 
     #getCurrentRange(): CustomRange {
